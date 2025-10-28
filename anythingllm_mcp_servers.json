@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "face-generator": {
+      "command": "npx",
+      "args": [
+        "@dasheck0/face-generator"
+      ],
+      "anythingllm": {
+        "autoStart": true
+      }
+    },
+    "mcp-youtube": {
+      "command": "mcp-youtube",
+      "args": []
+    },
+    "weather": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@timlukahorstmann/mcp-weather"
+      ],
+      "env": {
+        "ACCUWEATHER_API_KEY": "your-accuweather-api-key"
+      }
+    }
+  }
+}

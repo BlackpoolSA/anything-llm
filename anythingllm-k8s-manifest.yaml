@@ -1,0 +1,140 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns-anythingllm
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: anythingllm-mcp-config
+  namespace: ns-anythingllm
+data:
+  anythingllm_mcp_servers.json: |
+    {
+      "mcpServers": {
+        "face-generator": {
+          "command": "npx",
+          "args": ["@dasheck0/face-generator"],
+          "anythingllm": {
+            "autoStart": true
+          }
+        },
+        "mcp-youtube": {
+          "command": "mcp-youtube",
+          "args": []
+        },
+        "weather": {
+          "command": "npx",
+          "args": ["-y", "@timlukahorstmann/mcp-weather"],
+          "env": {
+            "ACCUWEATHER_API_KEY": "your_accuweather_api_key_here"
+          }
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: anythingllm-deployment
+  namespace: ns-anythingllm
+spec:
+  selector:
+    matchLabels:
+      app: anythingllm-app
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: anythingllm-app
+    spec:
+      initContainers:
+        - name: init-server
+          image: docker.io/mintplexlabs/anythingllm:latest
+          securityContext:
+            runAsUser: 0
+          command:
+            - sh
+            - -c
+            - |
+              echo "[Init] Copying base server files..."
+              cp -r /app/server/* /server/ && touch /server/.env && ls -la /server/
+          volumeMounts:
+            - name: server-dir
+              mountPath: /server
+
+        - name: init-plugins-config
+          image: alpine:latest
+          securityContext:
+            runAsUser: 0
+          command:
+            - sh
+            - -c
+            - |
+              echo "[Init] Creating plugin configuration file..."
+              mkdir -p /app/server/storage/plugins
+              cp /config/anythingllm_mcp_servers.json /app/server/storage/plugins/
+              echo "[Init] File copied to /app/server/storage/plugins/anythingllm_mcp_servers.json"
+              ls -la /app/server/storage/plugins
+          volumeMounts:
+            - name: server-dir
+              mountPath: /app/server
+            - name: mcp-config
+              mountPath: /config
+
+      containers:
+        - name: anythingllm
+          image: docker.io/mintplexlabs/anythingllm:latest
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: 0
+            capabilities:
+              add: ["SYS_ADMIN"]
+          env:
+            - name: STORAGE_DIR
+              value: "/app/server/storage"
+          ports:
+            - containerPort: 3001
+              protocol: TCP
+          volumeMounts:
+            - name: server-dir
+              mountPath: /app/server
+
+      volumes:
+        - name: server-dir
+          persistentVolumeClaim:
+            claimName: anythingllm-server-pvc
+        - name: mcp-config
+          configMap:
+            name: anythingllm-mcp-config
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: anythingllm-server-pvc
+  namespace: ns-anythingllm
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: anythingllm-service
+  namespace: ns-anythingllm
+  annotations:
+    oci.oraclecloud.com/load-balancer-type: "lb"
+    service.beta.kubernetes.io/oci-load-balancer-shape: "10Mbps"
+    oci.oraclecloud.com/loadbalancer-policy: "IP_HASH"
+spec:
+  loadBalancerIP: 163.192.202.88
+  type: LoadBalancer
+  ports:
+    - port: 3001
+      protocol: TCP
+      targetPort: 3001
+  selector:
+    app: anythingllm-app
