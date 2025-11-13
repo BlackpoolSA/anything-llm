@@ -19,7 +19,13 @@ fi
 {
   cd /app/server/ &&
     npx prisma generate --schema=./prisma/schema.prisma &&
-    npx prisma migrate deploy --schema=./prisma/schema.prisma &&
+    if [ -d "./prisma/migrations" ] && [ "$(ls -A ./prisma/migrations)" ]; then
+      echo "Migrations found, deploying..."
+      npx prisma migrate deploy --schema=./prisma/schema.prisma
+    else
+      echo "No migrations found, pushing schema to database..."
+      npx prisma db push --schema=./prisma/schema.prisma --accept-data-loss
+    fi &&
     node /app/server/index.js
 } &
 { node /app/collector/index.js; } &
