@@ -144,7 +144,7 @@ export default function SettingsSidebar() {
           <img
             src={logo}
             alt="Logo"
-            className="rounded max-h-[24px]"
+            className="rounded max-h-[64px]"
             style={{ objectFit: "contain" }}
           />
         </Link>
